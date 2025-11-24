@@ -30,6 +30,7 @@ type ProviderName =
   | 'OpenAI'
   | 'OpenRouter'
   | 'Perplexity'
+  | 'Qwen'
   | 'Together'
   | 'XAI';
 
@@ -48,6 +49,7 @@ const PROVIDER_ICONS: Record<ProviderName, IconType> = {
   OpenAI: SiOpenai,
   OpenRouter: FaCloud,
   Perplexity: SiPerplexity,
+  Qwen: BiCodeBlock,
   Together: BsCloud,
   XAI: BsRobot,
 };

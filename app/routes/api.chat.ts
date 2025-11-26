@@ -48,7 +48,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
     },
   });
 
-  const { messages, files, promptId, contextOptimization, supabase, chatMode, designScheme, maxLLMSteps } =
+  const { messages, files, promptId, contextOptimization, supabase, appwrite, chatMode, designScheme, maxLLMSteps } =
     await request.json<{
       messages: Messages;
       files: any;
@@ -62,6 +62,15 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
         credentials?: {
           anonKey?: string;
           supabaseUrl?: string;
+        };
+      };
+      appwrite?: {
+        isConnected: boolean;
+        hasSelectedProject: boolean;
+        credentials?: {
+          endpoint?: string;
+          projectId?: string;
+          apiKey?: string;
         };
       };
       maxLLMSteps: number;
@@ -209,6 +218,7 @@ async function chatAction({ context, request }: ActionFunctionArgs) {
 
         const options: StreamingOptions = {
           supabaseConnection: supabase,
+          appwriteConnection: appwrite,
           toolChoice: 'auto',
           tools: mcpService.toolsWithoutExecute,
           maxSteps: maxLLMSteps,

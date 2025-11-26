@@ -22,6 +22,20 @@ export default class QwenProvider extends BaseProvider {
       maxTokenAllowed: 65536,
       maxCompletionTokens: 65536,
     },
+    {
+      name: 'qwen3-coder-plus-2025-09-23',
+      label: 'Qwen3 Coder Plus 2025-09-23',
+      provider: 'Qwen',
+      maxTokenAllowed: 65536,
+      maxCompletionTokens: 65536,
+    },
+    {
+      name: 'qwen3-max',
+      label: 'Qwen3 Max',
+      provider: 'Qwen',
+      maxTokenAllowed: 65536,
+      maxCompletionTokens: 65536,
+    },
   ];
 
   getModelInstance(options: {

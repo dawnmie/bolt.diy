@@ -19,13 +19,14 @@ import { ExamplePrompts } from '~/components/chat/ExamplePrompts';
 import GitCloneButton from './GitCloneButton';
 import type { ProviderInfo } from '~/types/model';
 import StarterTemplates from './StarterTemplates';
-import type { ActionAlert, SupabaseAlert, DeployAlert, LlmErrorAlertType } from '~/types/actions';
+import type { ActionAlert, SupabaseAlert, AppwriteAlert, DeployAlert, LlmErrorAlertType } from '~/types/actions';
 import DeployChatAlert from '~/components/deploy/DeployAlert';
 import ChatAlert from './ChatAlert';
 import type { ModelInfo } from '~/lib/modules/llm/types';
 import ProgressCompilation from './ProgressCompilation';
 import type { ProgressAnnotation } from '~/types/context';
 import { SupabaseChatAlert } from '~/components/chat/SupabaseAlert';
+import { AppwriteChatAlert } from '~/components/chat/AppwriteAlert';
 import { expoUrlAtom } from '~/lib/stores/qrCodeStore';
 import { useStore } from '@nanostores/react';
 import { StickToBottom, useStickToBottomContext } from '~/lib/hooks';
@@ -68,6 +69,8 @@ interface BaseChatProps {
   clearAlert?: () => void;
   supabaseAlert?: SupabaseAlert;
   clearSupabaseAlert?: () => void;
+  appwriteAlert?: AppwriteAlert;
+  clearAppwriteAlert?: () => void;
   deployAlert?: DeployAlert;
   clearDeployAlert?: () => void;
   llmErrorAlert?: LlmErrorAlertType;
@@ -117,6 +120,8 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
       clearDeployAlert,
       supabaseAlert,
       clearSupabaseAlert,
+      appwriteAlert,
+      clearAppwriteAlert,
       llmErrorAlert,
       clearLlmErrorAlert,
       data,
@@ -408,6 +413,16 @@ export const BaseChat = React.forwardRef<HTMLDivElement, BaseChatProps>(
                       postMessage={(message) => {
                         sendMessage?.({} as any, message);
                         clearSupabaseAlert?.();
+                      }}
+                    />
+                  )}
+                  {appwriteAlert && (
+                    <AppwriteChatAlert
+                      alert={appwriteAlert}
+                      clearAlert={() => clearAppwriteAlert?.()}
+                      postMessage={(message) => {
+                        sendMessage?.({} as any, message);
+                        clearAppwriteAlert?.();
                       }}
                     />
                   )}

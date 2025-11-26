@@ -32,15 +32,23 @@ const messageParser = new EnhancedStreamingMessageParser({
     },
     onActionClose: (data) => {
       logger.trace('onActionClose', data.action);
+      console.log('[useMessageParser] 🔚 onActionClose:', {
+        actionId: data.actionId,
+        actionType: data.action.type,
+        operation: (data.action as any).operation,
+        filePath: (data.action as any).filePath,
+      });
 
       /*
        * Add non-file actions (shell, build, start, etc.) when they close
        * Enhanced parser creates complete shell actions, so they're ready to execute
        */
       if (data.action.type !== 'file') {
+        console.log('[useMessageParser] ➕ Adding non-file action to workbench');
         workbenchStore.addAction(data);
       }
 
+      console.log('[useMessageParser] ▶️ Running action');
       workbenchStore.runAction(data);
     },
     onActionStream: (data) => {

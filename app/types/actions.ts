@@ -1,6 +1,6 @@
 import type { Change } from 'diff';
 
-export type ActionType = 'file' | 'shell' | 'supabase';
+export type ActionType = 'file' | 'shell' | 'supabase' | 'appwrite';
 
 export interface BaseAction {
   content: string;
@@ -30,7 +30,14 @@ export interface SupabaseAction extends BaseAction {
   projectId?: string;
 }
 
-export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction;
+export interface AppwriteAction extends BaseAction {
+  type: 'appwrite';
+  operation: 'schema' | 'collection';
+  filePath?: string;
+  projectId?: string;
+}
+
+export type BoltAction = FileAction | ShellAction | StartAction | BuildAction | SupabaseAction | AppwriteAction;
 
 export type BoltActionData = BoltAction | BaseAction;
 
@@ -48,6 +55,14 @@ export interface SupabaseAlert {
   description: string;
   content: string;
   source?: 'supabase';
+}
+
+export interface AppwriteAlert {
+  type: string;
+  title: string;
+  description: string;
+  content: string;
+  source?: 'appwrite';
 }
 
 export interface DeployAlert {

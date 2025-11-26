@@ -1,4 +1,12 @@
-import type { ActionType, BoltAction, BoltActionData, FileAction, ShellAction, SupabaseAction } from '~/types/actions';
+import type {
+  ActionType,
+  BoltAction,
+  BoltActionData,
+  FileAction,
+  ShellAction,
+  SupabaseAction,
+  AppwriteAction,
+} from '~/types/actions';
 import type { BoltArtifactData } from '~/types/artifact';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
@@ -60,8 +68,6 @@ interface MessageState {
 function cleanoutMarkdownSyntax(content: string) {
   const codeBlockRegex = /^\s*```\w*\n([\s\S]*?)\n\s*```\s*$/;
   const match = content.match(codeBlockRegex);
-
-  // console.log('matching', !!match, content);
 
   if (match) {
     return match[1]; // Remove common leading 4-space indent
@@ -365,6 +371,34 @@ export class StreamingMessageParser {
 
         (actionAttributes as SupabaseAction).filePath = filePath;
       }
+    } else if (actionType === 'appwrite') {
+      const operation = this.#extractAttribute(actionTag, 'operation');
+
+      if (!operation || !['schema', 'collection'].includes(operation)) {
+        console.error('[MessageParser] Invalid Appwrite operation:', operation);
+        logger.warn(`Invalid or missing operation for Appwrite action: ${operation}`);
+        throw new Error(`Invalid Appwrite operation: ${operation}`);
+      }
+
+      (actionAttributes as AppwriteAction).operation = operation as 'schema' | 'collection';
+
+      if (operation === 'schema') {
+        const filePath = this.#extractAttribute(actionTag, 'filePath');
+
+        if (!filePath) {
+          console.error('[MessageParser] Schema requires a filePath');
+          logger.warn('Schema requires a filePath');
+          throw new Error('Schema requires a filePath');
+        }
+
+        (actionAttributes as AppwriteAction).filePath = filePath;
+      }
+
+      const projectId = this.#extractAttribute(actionTag, 'projectId');
+
+      if (projectId) {
+        (actionAttributes as AppwriteAction).projectId = projectId;
+      }
     } else if (actionType === 'file') {
       const filePath = this.#extractAttribute(actionTag, 'filePath') as string;
 
@@ -377,7 +411,7 @@ export class StreamingMessageParser {
       logger.warn(`Unknown action type '${actionType}'`);
     }
 
-    return actionAttributes as FileAction | ShellAction;
+    return actionAttributes as FileAction | ShellAction | SupabaseAction | AppwriteAction;
   }
 
   #extractAttribute(tag: string, attributeName: string): string | undefined {

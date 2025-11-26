@@ -1,7 +1,17 @@
 import type { WebContainer } from '@webcontainer/api';
 import { path as nodePath } from '~/utils/path';
 import { atom, map, type MapStore } from 'nanostores';
-import type { ActionAlert, BoltAction, DeployAlert, FileHistory, SupabaseAction, SupabaseAlert } from '~/types/actions';
+import type {
+  ActionAlert,
+  BoltAction,
+  DeployAlert,
+  FileHistory,
+  SupabaseAction,
+  SupabaseAlert,
+  AppwriteAction,
+  AppwriteAlert,
+  FileAction,
+} from '~/types/actions';
 import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 import type { ActionCallbackData } from './message-parser';
@@ -71,6 +81,7 @@ export class ActionRunner {
   actions: ActionsMap = map({});
   onAlert?: (alert: ActionAlert) => void;
   onSupabaseAlert?: (alert: SupabaseAlert) => void;
+  onAppwriteAlert?: (alert: AppwriteAlert) => void;
   onDeployAlert?: (alert: DeployAlert) => void;
   buildOutput?: { path: string; exitCode: number; output: string };
 
@@ -79,12 +90,14 @@ export class ActionRunner {
     getShellTerminal: () => BoltShell,
     onAlert?: (alert: ActionAlert) => void,
     onSupabaseAlert?: (alert: SupabaseAlert) => void,
+    onAppwriteAlert?: (alert: AppwriteAlert) => void,
     onDeployAlert?: (alert: DeployAlert) => void,
   ) {
     this.#webcontainer = webcontainerPromise;
     this.#shellTerminal = getShellTerminal;
     this.onAlert = onAlert;
     this.onSupabaseAlert = onSupabaseAlert;
+    this.onAppwriteAlert = onAppwriteAlert;
     this.onDeployAlert = onDeployAlert;
   }
 
@@ -160,7 +173,123 @@ export class ActionRunner {
           break;
         }
         case 'file': {
+          const filePath = (action as FileAction).filePath;
+          const changeSource = (action as any).changeSource;
+
+          /*
+           * Check if this is a migration file that should show an alert
+           * Similar to Supabase, we show alert but keep it as a file action
+           * Skip if changeSource is 'appwrite' to avoid duplicate alerts (appwrite actions handle their own alerts)
+           */
+          if (filePath && changeSource !== 'appwrite') {
+            // Check for appwrite schema files (with or without leading slash)
+            const isAppwriteSchema =
+              (filePath.includes('/appwrite/schema/') || filePath.includes('appwrite/schema/')) &&
+              filePath.endsWith('.json');
+
+            if (isAppwriteSchema) {
+              // Show alert for Appwrite schema (similar to Supabase migration)
+              this.onAppwriteAlert?.({
+                type: 'info',
+                title: 'Appwrite Schema',
+                description: `Create schema file: ${filePath}`,
+                content: action.content,
+                source: 'appwrite',
+              });
+            }
+          }
+
+          // Always run as file action (consistent with Supabase)
           await this.#runFileAction(action);
+          break;
+        }
+        case 'appwrite': {
+          const appwriteAction = action as AppwriteAction;
+
+          logger.info(`[Appwrite] Executing appwrite action: ${appwriteAction.operation}`);
+
+          /*
+           * For schema operations, convert to file action for proper display
+           * This matches Supabase migration behavior
+           */
+          if (appwriteAction.operation === 'schema' && appwriteAction.filePath) {
+            // Check if there's already a file action for the same filePath
+            const allActions = this.actions.get();
+            const existingFileActionEntry = Object.entries(allActions).find(
+              ([id, a]) =>
+                id !== actionId && a.type === 'file' && (a as FileAction).filePath === appwriteAction.filePath,
+            );
+            const existingFileAction = existingFileActionEntry ? (existingFileActionEntry[1] as FileAction) : undefined;
+
+            // Determine which content to use
+            let finalContent = appwriteAction.content || '';
+
+            if (existingFileAction) {
+              /*
+               * If appwrite action has no content or empty content, use existing file action's content
+               * Otherwise, prefer the longer/more complete content
+               */
+              if (!appwriteAction.content || appwriteAction.content.trim().length === 0) {
+                finalContent = existingFileAction.content || '';
+              } else if (
+                existingFileAction.content &&
+                existingFileAction.content.length > appwriteAction.content.length
+              ) {
+                finalContent = existingFileAction.content;
+              } else {
+                finalContent = appwriteAction.content;
+              }
+            }
+
+            // Show alert for schema action (only once, before converting to file action)
+            this.onAppwriteAlert?.({
+              type: 'info',
+              title: 'Appwrite Schema',
+              description: `Create schema file: ${appwriteAction.filePath}`,
+              content: finalContent,
+              source: 'appwrite',
+            });
+
+            /*
+             * Update action type to 'file' so it displays correctly in Artifact
+             * Mark with changeSource: 'appwrite' to prevent duplicate detection in file handler
+             */
+            this.#updateAction(actionId, {
+              type: 'file',
+              filePath: appwriteAction.filePath,
+              content: finalContent,
+              changeSource: 'appwrite',
+            } as any);
+
+            // Only create the file if there's no existing file action, or if we have better content
+            if (!existingFileAction || finalContent.length > 0) {
+              // Create the schema file as a file action (only once)
+              await this.#runFileAction({
+                type: 'file',
+                filePath: appwriteAction.filePath,
+                content: finalContent,
+                changeSource: 'appwrite',
+              } as any);
+            } else {
+              console.log('[ActionRunner] Skipping file creation (existing file action already handled it)');
+            }
+
+            break;
+          }
+
+          // For other operations (like 'collection'), handle normally
+          try {
+            await this.handleAppwriteAction(appwriteAction);
+          } catch (error: any) {
+            // Update action status
+            this.#updateAction(actionId, {
+              status: 'failed',
+              error: error instanceof Error ? error.message : 'Appwrite action failed',
+            });
+
+            // Return early without re-throwing
+            return;
+          }
           break;
         }
         case 'supabase': {
@@ -500,6 +629,54 @@ export class ActionRunner {
         });
 
         // The actual execution will be triggered from SupabaseChatAlert
+        return { pending: true };
+      }
+
+      default:
+        throw new Error(`Unknown operation: ${operation}`);
+    }
+  }
+
+  async handleAppwriteAction(action: AppwriteAction) {
+    const { operation, content, filePath } = action;
+
+    logger.info(`[Appwrite Action] Operation: ${operation}, FilePath: ${filePath || 'N/A'}`);
+
+    switch (operation) {
+      case 'schema':
+        if (!filePath) {
+          console.error('[ActionRunner] Schema requires a filePath');
+          throw new Error('Schema requires a filePath');
+        }
+
+        // Show alert for schema action
+        this.onAppwriteAlert?.({
+          type: 'info',
+          title: 'Appwrite Schema',
+          description: `Create schema file: ${filePath}`,
+          content,
+          source: 'appwrite',
+        });
+
+        // Only create the schema file
+        await this.#runFileAction({
+          type: 'file',
+          filePath,
+          content,
+          changeSource: 'appwrite',
+        } as any);
+        return { success: true };
+
+      case 'collection': {
+        this.onAppwriteAlert?.({
+          type: 'info',
+          title: 'Appwrite Collection',
+          description: 'Create database collection',
+          content: content || '', // Ensure content is always a string
+          source: 'appwrite',
+        });
+
+        // The actual execution will be triggered from AppwriteChatAlert
         return { pending: true };
       }
 

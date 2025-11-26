@@ -1,5 +1,5 @@
 # ---- build stage ----
-FROM node:22-bookworm-slim AS build
+FROM --platform=linux/amd64 node:22-bookworm-slim AS build
 WORKDIR /app
 
 # CI-friendly env
@@ -9,8 +9,20 @@ ENV CI=true
 # Use pnpm
 RUN corepack enable && corepack prepare pnpm@9.15.9 --activate
 
-# Ensure git is available for build and runtime scripts
-RUN apt-get update && apt-get install -y --no-install-recommends git \
+# Configure Debian mirror to use Chinese mirror for faster downloads
+# Use HTTP to avoid certificate issues before ca-certificates is installed
+RUN rm -f /etc/apt/sources.list.d/debian.sources && \
+    echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm main contrib non-free non-free-firmware" > /etc/apt/sources.list && \
+    echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm-updates main contrib non-free non-free-firmware" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian-security bookworm-security main contrib non-free non-free-firmware" >> /etc/apt/sources.list
+
+# Ensure git and ssh are available for build and runtime scripts
+# ssh is needed for git dependencies that use SSH URLs (e.g., @electron/node-gyp)
+# ca-certificates is needed for HTTPS SSL certificate verification
+# Configure git to use HTTPS instead of SSH for GitHub to avoid host key verification issues
+RUN apt-get update && apt-get install -y --no-install-recommends git openssh-client ca-certificates \
+  && git config --global url."https://github.com/".insteadOf "git@github.com:" \
+  && git config --global url."https://".insteadOf "git://" \
   && rm -rf /var/lib/apt/lists/*
 
 # Accept (optional) build-time public URL for Remix/Vite (Coolify can pass it)
@@ -19,6 +31,18 @@ ENV VITE_PUBLIC_APP_URL=${VITE_PUBLIC_APP_URL}
 
 # Install deps efficiently
 COPY package.json pnpm-lock.yaml* ./
+# Configure all mirrors for faster downloads in China
+ENV NPM_CONFIG_REGISTRY=https://registry.npmmirror.com
+ENV ELECTRON_MIRROR=https://npmmirror.com/mirrors/electron/
+ENV ELECTRON_CUSTOM_DIR="{{ version }}"
+ENV ELECTRON_BUILDER_CACHE=/root/.cache/electron-builder
+# Configure pnpm registry, network timeout, and concurrency
+RUN pnpm config set registry https://registry.npmmirror.com && \
+    pnpm config set network-timeout 600000 && \
+    pnpm config set fetch-retries 5 && \
+    pnpm config set fetch-retry-mintimeout 20000 && \
+    pnpm config set fetch-retry-maxtimeout 120000 && \
+    pnpm config set network-concurrency 16
 RUN pnpm fetch
 
 # Copy source and build
@@ -56,6 +80,13 @@ ENV WRANGLER_SEND_METRICS=false \
 
 # Note: API keys should be provided at runtime via docker run -e or docker-compose
 # Example: docker run -e OPENAI_API_KEY=your_key_here ...
+
+# Configure Debian mirror to use Chinese mirror for faster downloads (production stage)
+# Use HTTP to avoid certificate issues (ca-certificates already installed from build stage)
+RUN rm -f /etc/apt/sources.list.d/debian.sources && \
+    echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm main contrib non-free non-free-firmware" > /etc/apt/sources.list && \
+    echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian/ bookworm-updates main contrib non-free non-free-firmware" >> /etc/apt/sources.list && \
+    echo "deb http://mirrors.tuna.tsinghua.edu.cn/debian-security bookworm-security main contrib non-free non-free-firmware" >> /etc/apt/sources.list
 
 # Install curl for healthchecks and copy bindings script
 RUN apt-get update && apt-get install -y --no-install-recommends curl \

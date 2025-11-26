@@ -23,6 +23,7 @@ import { logStore } from '~/lib/stores/logs';
 import { streamingState } from '~/lib/stores/streaming';
 import { filesToArtifacts } from '~/utils/fileUtils';
 import { supabaseConnection } from '~/lib/stores/supabase';
+import { appwriteConnection } from '~/lib/stores/appwrite';
 import { defaultDesignScheme, type DesignScheme } from '~/types/design-scheme';
 import type { ElementInfo } from '~/components/workbench/Inspector';
 import type { TextUIPart, FileUIPart, Attachment } from '@ai-sdk/ui-utils';
@@ -99,7 +100,12 @@ export const ChatImpl = memo(
     const selectedProject = supabaseConn.stats?.projects?.find(
       (project) => project.id === supabaseConn.selectedProjectId,
     );
+    const appwriteConn = useStore(appwriteConnection);
+    const selectedAppwriteProject = appwriteConn.stats?.projects?.find(
+      (project) => project.$id === appwriteConn.selectedProjectId,
+    );
     const supabaseAlert = useStore(workbenchStore.supabaseAlert);
+    const appwriteAlert = useStore(workbenchStore.appwriteAlert);
     const { activeProviders, promptId, autoSelectTemplate, contextOptimizationEnabled } = useSettings();
     const [llmErrorAlert, setLlmErrorAlert] = useState<LlmErrorAlertType | undefined>(undefined);
     const [model, setModel] = useState(() => {
@@ -146,6 +152,15 @@ export const ChatImpl = memo(
           credentials: {
             supabaseUrl: supabaseConn?.credentials?.supabaseUrl,
             anonKey: supabaseConn?.credentials?.anonKey,
+          },
+        },
+        appwrite: {
+          isConnected: !!(appwriteConn.user && appwriteConn.endpoint && appwriteConn.sessionToken),
+          hasSelectedProject: !!selectedAppwriteProject,
+          credentials: {
+            endpoint: appwriteConn?.credentials?.endpoint,
+            projectId: appwriteConn?.credentials?.projectId,
+            sessionToken: appwriteConn?.credentials?.sessionToken,
           },
         },
         maxLLMSteps: mcpSettings.maxLLMSteps,
@@ -651,6 +666,8 @@ export const ChatImpl = memo(
         clearAlert={() => workbenchStore.clearAlert()}
         supabaseAlert={supabaseAlert}
         clearSupabaseAlert={() => workbenchStore.clearSupabaseAlert()}
+        appwriteAlert={appwriteAlert}
+        clearAppwriteAlert={() => workbenchStore.clearAppwriteAlert()}
         deployAlert={deployAlert}
         clearDeployAlert={() => workbenchStore.clearDeployAlert()}
         llmErrorAlert={llmErrorAlert}

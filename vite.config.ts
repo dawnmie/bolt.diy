@@ -17,7 +17,7 @@ export default defineConfig((config) => {
       'process.env.NODE_ENV': JSON.stringify(process.env.NODE_ENV),
     },
     server: {
-      port: 80,
+      port: 5173,
     },
     build: {
       target: 'esnext',

@@ -86,10 +86,15 @@ export function AppwriteConnection() {
     <div className="relative">
       <div className="flex border border-bolt-elements-borderColor rounded-md overflow-hidden mr-2 text-sm">
         <Button
-          active
+          active={isConnected}
           disabled={connecting}
           onClick={() => setIsDialogOpen(!isDialogOpen)}
-          className="hover:bg-bolt-elements-item-backgroundActive !text-white flex items-center gap-2"
+          className={classNames(
+            'hover:bg-bolt-elements-item-backgroundActive flex items-center gap-2',
+            isConnected
+              ? 'text-bolt-elements-textPrimary dark:text-bolt-elements-item-contentAccent'
+              : 'text-bolt-elements-textTertiary',
+          )}
         >
           <img
             className="w-4 h-4"

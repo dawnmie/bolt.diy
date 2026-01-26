@@ -36,10 +36,10 @@ const savedConnection = storage ? storage.getItem('appwrite_connection') : null;
 const savedCredentials = storage ? storage.getItem('appwriteCredentials') : null;
 
 const initialState: AppwriteConnectionState = savedConnection
-  ? { ...JSON.parse(savedConnection), endpoint: 'https://appbuild.oceanbase.com/v1' }
+  ? { ...JSON.parse(savedConnection), endpoint: 'https://appbuild.store/v1' }
   : {
       user: null,
-      endpoint: 'https://appbuild.oceanbase.com/v1',
+      endpoint: 'https://appbuild.store/v1',
       email: '',
       password: '',
       sessionToken: undefined,
@@ -77,8 +77,9 @@ export function updateAppwriteConnection(connection: Partial<AppwriteConnectionS
   }
 
   if (connection.selectedProjectId !== undefined) {
-    if (connection.selectedProjectId && currentState.stats?.projects) {
-      const selectedProject = currentState.stats.projects.find(
+    if (connection.selectedProjectId) {
+      // Try to find project from stats
+      const selectedProject = currentState.stats?.projects?.find(
         (project) => project.$id === connection.selectedProjectId,
       );
 
@@ -93,6 +94,7 @@ export function updateAppwriteConnection(connection: Partial<AppwriteConnectionS
           updatedAt: selectedProject.updatedAt,
         };
       } else {
+        // Fallback: create a placeholder project object even if stats is not available
         connection.project = {
           $id: connection.selectedProjectId,
           name: `Project ${connection.selectedProjectId.substring(0, 8)}...`,
@@ -103,7 +105,8 @@ export function updateAppwriteConnection(connection: Partial<AppwriteConnectionS
           updatedAt: new Date().toISOString(),
         };
       }
-    } else if (connection.selectedProjectId === '') {
+    } else {
+      // selectedProjectId is empty string or falsy, clear project
       connection.project = undefined;
       connection.credentials = undefined;
     }
@@ -145,7 +148,7 @@ export function updateAppwriteConnection(connection: Partial<AppwriteConnectionS
 
 export function initializeAppwriteConnection() {
   // Auto-connect using environment variables if available
-  const envEndpoint = 'https://appbuild.oceanbase.com/v1';
+  const envEndpoint = 'https://appbuild.store/v1';
   const envSessionToken = import.meta.env?.VITE_APPWRITE_SESSION_TOKEN;
 
   // Always set the hardcoded endpoint

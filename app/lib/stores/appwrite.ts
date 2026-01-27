@@ -77,9 +77,8 @@ export function updateAppwriteConnection(connection: Partial<AppwriteConnectionS
   }
 
   if (connection.selectedProjectId !== undefined) {
-    if (connection.selectedProjectId) {
-      // Try to find project from stats
-      const selectedProject = currentState.stats?.projects?.find(
+    if (connection.selectedProjectId && currentState.stats?.projects) {
+      const selectedProject = currentState.stats.projects.find(
         (project) => project.$id === connection.selectedProjectId,
       );
 
@@ -94,7 +93,6 @@ export function updateAppwriteConnection(connection: Partial<AppwriteConnectionS
           updatedAt: selectedProject.updatedAt,
         };
       } else {
-        // Fallback: create a placeholder project object even if stats is not available
         connection.project = {
           $id: connection.selectedProjectId,
           name: `Project ${connection.selectedProjectId.substring(0, 8)}...`,
@@ -105,8 +103,7 @@ export function updateAppwriteConnection(connection: Partial<AppwriteConnectionS
           updatedAt: new Date().toISOString(),
         };
       }
-    } else {
-      // selectedProjectId is empty string or falsy, clear project
+    } else if (connection.selectedProjectId === '') {
       connection.project = undefined;
       connection.credentials = undefined;
     }

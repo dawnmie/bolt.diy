@@ -82,7 +82,7 @@ async function checkCurrentSession(endpoint: string) {
         registration: user.registration || new Date().toISOString(),
         emailVerification: user.emailVerification === true,
       },
-      sessionToken,
+      sessionToken: sessionToken || 'cookie-session', // Ensure sessionToken is always a valid string
       stats: {
         projects: transformedProjects,
         totalProjects: transformedProjects.length,
@@ -120,7 +120,7 @@ export function useAppwriteConnection() {
       }
 
       // Always ensure endpoint is set to hardcoded value
-      const hardcodedEndpoint = 'https://appbuild.oceanbase.com/v1';
+      const hardcodedEndpoint = 'https://appbuild.store/v1';
       const currentState = appwriteConnection.get();
 
       if (currentState.endpoint !== hardcodedEndpoint) {
@@ -213,7 +213,7 @@ export function useAppwriteConnection() {
     setIsConnecting(true);
 
     try {
-      const cleanEndpoint = 'https://appbuild.oceanbase.com/v1';
+      const cleanEndpoint = 'https://appbuild.store/v1';
       const cleanEmail = connection.email.trim();
       const cleanPassword = connection.password;
 
@@ -297,7 +297,7 @@ export function useAppwriteConnection() {
 
       // If we still don't have a token, use the session ID
       if (!sessionToken) {
-        sessionToken = session.$id;
+        sessionToken = session.$id || 'cookie-session';
       }
 
       // Get user info using SDK

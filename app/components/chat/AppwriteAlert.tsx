@@ -72,6 +72,9 @@ export function AppwriteChatAlert({ alert, clearAlert, postMessage }: Props) {
       const region = '';
       const projectSdk = sdk.forProject(region, connection.selectedProjectId);
 
+      // Must set endpoint BEFORE making any API calls
+      projectSdk.client.setEndpoint(connection.endpoint);
+
       const schema: any = {
         databaseId: 'default',
         collections: JSON.parse(dataToUse),
@@ -85,8 +88,6 @@ export function AppwriteChatAlert({ alert, clearAlert, postMessage }: Props) {
       if (!defaultDatabase) {
         projectSdk.tablesDB.create({ databaseId: 'default', name: 'default' });
       }
-
-      projectSdk.client.setEndpoint(connection.endpoint);
 
       const migration = projectSdk.schemaMigration;
       const plan = await migration.generatePlan(schema);

@@ -129,7 +129,7 @@ export function AppwriteConnection() {
                   <label className="block text-sm text-bolt-elements-textSecondary mb-2">Endpoint</label>
                   <input
                     type="text"
-                    value="https://appbuild.oceanbase.com/v1"
+                    value="https://appbuild.store/v1"
                     readOnly
                     disabled
                     className={classNames(

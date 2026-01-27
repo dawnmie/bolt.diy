@@ -16,6 +16,7 @@ import { createScopedLogger } from '~/utils/logger';
 import { unreachable } from '~/utils/unreachable';
 import type { ActionCallbackData } from './message-parser';
 import type { BoltShell } from '~/utils/shell';
+import { streamingState } from '~/lib/stores/streaming';
 
 const logger = createScopedLogger('ActionRunner');
 
@@ -77,6 +78,8 @@ export class ActionRunner {
   #webcontainer: Promise<WebContainer>;
   #currentExecutionPromise: Promise<void> = Promise.resolve();
   #shellTerminal: () => BoltShell;
+  #pendingAppwriteAlert: AppwriteAlert | null = null;
+  #streamingUnsubscribe: (() => void) | null = null;
   runnerId = atom<string>(`${Date.now()}`);
   actions: ActionsMap = map({});
   onAlert?: (alert: ActionAlert) => void;
@@ -99,6 +102,15 @@ export class ActionRunner {
     this.onSupabaseAlert = onSupabaseAlert;
     this.onAppwriteAlert = onAppwriteAlert;
     this.onDeployAlert = onDeployAlert;
+
+    // Subscribe to streaming state to show pending alerts when streaming completes
+    this.#streamingUnsubscribe = streamingState.subscribe((isStreaming) => {
+      if (!isStreaming && this.#pendingAppwriteAlert) {
+        // Streaming completed, show the pending alert
+        this.onAppwriteAlert?.(this.#pendingAppwriteAlert);
+        this.#pendingAppwriteAlert = null;
+      }
+    });
   }
 
   addAction(data: ActionCallbackData) {
@@ -188,14 +200,22 @@ export class ActionRunner {
               filePath.endsWith('.json');
 
             if (isAppwriteSchema) {
-              // Show alert for Appwrite schema (similar to Supabase migration)
-              this.onAppwriteAlert?.({
+              const alert: AppwriteAlert = {
                 type: 'info',
                 title: 'Appwrite Schema',
                 description: `Create schema file: ${filePath}`,
                 content: action.content,
                 source: 'appwrite',
-              });
+              };
+
+              // Check global streaming state - if still streaming, queue the alert
+              if (streamingState.get()) {
+                // Store alert to show when streaming completes
+                this.#pendingAppwriteAlert = alert;
+              } else {
+                // Streaming already complete, show alert immediately
+                this.onAppwriteAlert?.(alert);
+              }
             }
           }
 
@@ -242,13 +262,20 @@ export class ActionRunner {
             }
 
             // Show alert for schema action (only once, before converting to file action)
-            this.onAppwriteAlert?.({
+            const alert: AppwriteAlert = {
               type: 'info',
               title: 'Appwrite Schema',
               description: `Create schema file: ${appwriteAction.filePath}`,
               content: finalContent,
               source: 'appwrite',
-            });
+            };
+
+            // Check global streaming state - if still streaming, queue the alert
+            if (streamingState.get()) {
+              this.#pendingAppwriteAlert = alert;
+            } else {
+              this.onAppwriteAlert?.(alert);
+            }
 
             /*
              * Update action type to 'file' so it displays correctly in Artifact
